@@ -148,7 +148,15 @@
     return data;
   }
 
+  const responseCache = new Map();
+
+  function remember(path, data) {
+    responseCache.set(path, JSON.stringify(data));
+  }
+
   async function request(method, path, body) {
+    const cacheable = method === 'GET' && (path === '/api/settings/' || path === '/api/dashboard-summary/');
+    if (cacheable && responseCache.has(path)) return JSON.parse(responseCache.get(path));
     const headers = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (method !== 'GET' && method !== 'HEAD') {
@@ -177,6 +185,9 @@
       }
       throw new Error(errorMessage(data));
     }
+    if (method !== 'GET' && method !== 'HEAD') responseCache.clear();
+    if (cacheable && data) remember(path, data);
+    if (path === '/api/dashboard-summary/' && data && data.settings) remember('/api/settings/', data.settings);
     return data;
   }
 

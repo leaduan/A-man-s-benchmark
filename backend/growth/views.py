@@ -1,5 +1,5 @@
 from datetime import timedelta
-from django.db.models import Sum, Max, Q, Case, When, Value, IntegerField
+from django.db.models import Q, Case, When, Value, IntegerField
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -17,6 +17,32 @@ from .time import local_today
 
 def get_request_user(request):
     return request.user
+
+
+def execution_rate(user):
+    """Coursework completion as a whole percent, from one pass over the student's tasks."""
+    total = 0
+    completed = 0
+    pending = 0
+    high_pending = 0
+    for category, status, priority in Task.objects.filter(user=user).values_list('category', 'status', 'priority'):
+        done = status == TaskStatus.COMPLETED
+        if category == TaskCategory.UNIVERSITY_COURSEWORK:
+            total += 1
+            if done:
+                completed += 1
+        if not done:
+            pending += 1
+            if priority == TaskPriority.HIGH:
+                high_pending += 1
+    rate = round((completed / total) * 100) if total else 0
+    return {
+        'academy_total': total,
+        'academy_completed': completed,
+        'academy_rate': rate,
+        'pending_count': pending,
+        'high_priority_pending': high_pending,
+    }
 
 class TaskViewSet(viewsets.ModelViewSet):
     """
@@ -168,6 +194,7 @@ class UserSettingsView(APIView):
     def get(self, request):
         user = get_request_user(request)
         settings_obj, _ = UserSettings.objects.get_or_create(user=user)
+        settings_obj.current_execution_rate = execution_rate(user)['academy_rate']
         serializer = UserSettingsSerializer(settings_obj)
         return Response(serializer.data)
 
@@ -193,52 +220,55 @@ class DashboardSummaryView(APIView):
         user = get_request_user(request)
         settings_obj, _ = UserSettings.objects.get_or_create(user=user)
 
-        # 1. Academy Tasks
-        tasks = Task.objects.filter(user=user)
-        academy_tasks = tasks.filter(category=TaskCategory.UNIVERSITY_COURSEWORK)
-        academy_total = academy_tasks.count()
-        academy_completed = academy_tasks.filter(status=TaskStatus.COMPLETED).count()
-        academy_rate = round((academy_completed / academy_total) * 100) if academy_total > 0 else 0
+        counts = execution_rate(user)
+        academy_total = counts['academy_total']
+        academy_completed = counts['academy_completed']
+        academy_rate = counts['academy_rate']
+        if settings_obj.current_execution_rate != academy_rate:
+            settings_obj.current_execution_rate = academy_rate
+            settings_obj.save(update_fields=['current_execution_rate'])
 
-        # Update settings current execution
-        settings_obj.current_execution_rate = academy_rate
-        settings_obj.save(update_fields=['current_execution_rate'])
-
-        # 2. Study Session calculations (Current 7 days vs Prior 7 days)
         today = local_today(settings_obj)
         seven_days_ago = today - timedelta(days=7)
         fourteen_days_ago = today - timedelta(days=14)
 
-        current_week_mins = StudySession.objects.filter(
-            user=user, date__gte=seven_days_ago, date__lte=today
-        ).aggregate(total=Sum('duration_minutes'))['total'] or 0
-
-        prior_week_mins = StudySession.objects.filter(
-            user=user, date__gte=fourteen_days_ago, date__lt=seven_days_ago
-        ).aggregate(total=Sum('duration_minutes'))['total'] or 0
+        current_week_mins = 0
+        prior_week_mins = 0
+        longest_session_mins = 0
+        minutes_by_day = {}
+        sessions = StudySession.objects.filter(
+            user=user, date__gte=fourteen_days_ago, date__lte=today
+        ).values_list('date', 'duration_minutes')
+        for session_date, minutes in sessions:
+            minutes = minutes or 0
+            if session_date >= seven_days_ago:
+                current_week_mins += minutes
+                if minutes > longest_session_mins:
+                    longest_session_mins = minutes
+                minutes_by_day[session_date] = minutes_by_day.get(session_date, 0) + minutes
+            else:
+                prior_week_mins += minutes
 
         current_week_hours = round(current_week_mins / 60.0, 1)
         prior_week_hours = round(prior_week_mins / 60.0, 1)
         study_delta = round(current_week_hours - prior_week_hours, 1)
         delta_percent = round(((current_week_hours - prior_week_hours) / prior_week_hours) * 100) if prior_week_hours > 0 else 0
 
-        longest_session_mins = StudySession.objects.filter(
-            user=user, date__gte=seven_days_ago, date__lte=today
-        ).aggregate(longest=Max('duration_minutes'))['longest'] or 0
-
-        # 3. Scoreboard preview
-        pillars = ScoreArea.objects.all().order_by('order')
+        pillars = list(ScoreArea.objects.all().order_by('order'))
+        latest_by_area = {}
+        for score in WeeklyScore.objects.filter(user=user, score_area__in=pillars).order_by('-week_start'):
+            latest_by_area.setdefault(score.score_area_id, score)
         scoreboard_preview = []
         recent_ratings = []
-        for p in pillars:
-            latest_score = WeeklyScore.objects.filter(user=user, score_area=p).order_by('-week_start').first()
+        for pillar in pillars:
+            latest_score = latest_by_area.get(pillar.id)
             if latest_score:
                 recent_ratings.append(latest_score.rating)
             scoreboard_preview.append({
-                'id': p.id,
-                'title': p.title,
-                'code': p.code,
-                'priority_tag': p.priority_tag,
+                'id': pillar.id,
+                'title': pillar.title,
+                'code': pillar.code,
+                'priority_tag': pillar.priority_tag,
                 'rating': latest_score.rating if latest_score else 0,
                 'evidence': latest_score.evidence if latest_score else "No evaluation logged."
             })
@@ -256,7 +286,7 @@ class DashboardSummaryView(APIView):
         ))
 
         # 5. Urgent Tasks (Academy First)
-        urgent_tasks = tasks.filter(~Q(status=TaskStatus.COMPLETED)).annotate(
+        urgent_tasks = Task.objects.filter(user=user).filter(~Q(status=TaskStatus.COMPLETED)).annotate(
             academy_rank=Case(
                 When(category=TaskCategory.UNIVERSITY_COURSEWORK, then=Value(0)),
                 default=Value(1),
@@ -274,15 +304,14 @@ class DashboardSummaryView(APIView):
         daily_activity = []
         for i in range(6, -1, -1):
             day_date = today - timedelta(days=i)
-            day_mins = StudySession.objects.filter(user=user, date=day_date).aggregate(total=Sum('duration_minutes'))['total'] or 0
             daily_activity.append({
                 'date': day_date.strftime('%Y-%m-%d'),
                 'label': day_date.strftime('%a'),
-                'hours': round(day_mins / 60.0, 1)
+                'hours': round(minutes_by_day.get(day_date, 0) / 60.0, 1)
             })
 
-        pending_count = tasks.filter(~Q(status=TaskStatus.COMPLETED)).count()
-        high_priority_pending = tasks.filter(~Q(status=TaskStatus.COMPLETED), priority='High').count()
+        pending_count = counts['pending_count']
+        high_priority_pending = counts['high_priority_pending']
 
         return Response({
             'today': today.isoformat(),

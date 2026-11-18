@@ -11,9 +11,8 @@
   }
 
   async function render(root, alive) {
-    const summary = await AMB.dashboard();
+    const settings = await AMB.getSettings();
     if (!alive()) return;
-    const settings = summary.settings;
     root.innerHTML = `
       <div class="page-head">
         <div>
