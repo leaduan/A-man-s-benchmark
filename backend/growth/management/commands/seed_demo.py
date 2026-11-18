@@ -289,6 +289,7 @@ class Command(BaseCommand):
 
         for spec in STUDENTS:
             self._seed_student(spec, areas, today, monday, reset)
+        self._seed_admin()
 
         self.stdout.write(self.style.SUCCESS(
             'Demo students ready. Sign in as reduan@mail.com (Geology) or '
@@ -378,3 +379,25 @@ class Command(BaseCommand):
             settings_obj.save()
 
         self.stdout.write(self.style.SUCCESS(f'Seeded {email}.'))
+
+    def _seed_admin(self):
+        """One staff row in the same user table. Password is set only on first create."""
+        email = 'admin@mail.com'
+        with transaction.atomic():
+            user, created = User.objects.get_or_create(
+                username=email,
+                defaults={'email': email, 'first_name': 'Admin'},
+            )
+            user.email = email
+            user.is_staff = True
+            user.is_active = True
+            if created or not user.has_usable_password():
+                user.set_password(DEMO_PASSWORD)
+            user.save()
+            settings_obj, _ = UserSettings.objects.get_or_create(user=user)
+            if created or not settings_obj.student_name:
+                settings_obj.student_name = 'Administrator'
+                settings_obj.major = ''
+                settings_obj.timezone = DEFAULT_TIMEZONE
+                settings_obj.save()
+        self.stdout.write(self.style.SUCCESS(f'Admin ready: {email}'))

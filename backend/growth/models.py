@@ -168,3 +168,33 @@ class UserSettings(models.Model):
 
     def __str__(self):
         return f"Settings for {self.student_name}"
+
+
+class GateSettings(models.Model):
+    """One row that controls the public sign-in and registration card."""
+
+    registration_open = models.BooleanField(default=True)
+    login_open = models.BooleanField(default=True)
+    panel_note = models.TextField(
+        blank=True,
+        default=(
+            'Demo workspaces, already filled: reduan@mail.com (Geology) and '
+            'amamun@mail.com (CSE). Password Demo-student-2026.'
+        ),
+    )
+
+    class Meta:
+        verbose_name = 'Sign-in panel'
+        verbose_name_plural = 'Sign-in panel'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return 'Sign-in panel'

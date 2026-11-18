@@ -718,6 +718,19 @@ td.num, th.num { text-align: right; font-family: "JetBrains Mono", ui-monospace,
 }
 
 .gate-switch .nav-btn { justify-content: center; }
+.gate-switch.single { grid-template-columns: 1fr; }
+.nav-btn[hidden] { display: none !important; }
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.check-line input { width: auto; padding: 0; }
+
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 @media (max-width: 640px) {
   .kpi-grid, .form-grid { grid-template-columns: 1fr; }

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Task, ScoreArea, WeeklyScore, StudySession, WeeklyReview, UserSettings
+from .models import GateSettings, Task, ScoreArea, WeeklyScore, StudySession, WeeklyReview, UserSettings
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
@@ -28,6 +28,11 @@ class StudySessionAdmin(admin.ModelAdmin):
 class WeeklyReviewAdmin(admin.ModelAdmin):
     list_display = ('week_start', 'non_negotiable_1', 'user')
     search_fields = ('accomplishments', 'failures', 'lessons_learned')
+
+@admin.register(GateSettings)
+class GateSettingsAdmin(admin.ModelAdmin):
+    list_display = ('registration_open', 'login_open')
+
 
 @admin.register(UserSettings)
 class UserSettingsAdmin(admin.ModelAdmin):

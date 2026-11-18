@@ -127,3 +127,72 @@ class AccountTests(TestCase):
         self.assertGreater(dashboard.json()['kpis']['study_hours_current'], 0)
         self.assertEqual(len(dashboard.json()['scoreboard_preview']), 5)
         self.assertTrue(all(pillar['rating'] > 0 for pillar in dashboard.json()['scoreboard_preview']))
+
+    def test_admin_uses_the_same_user_table_and_controls_the_gate(self):
+        student = User.objects.create_user('ada@example.com', 'ada@example.com', PASSWORD)
+        admin = User.objects.create_user('admin@mail.com', 'admin@mail.com', PASSWORD, is_staff=True)
+        student_client = APIClient()
+        student_client.login(username='ada@example.com', password=PASSWORD)
+        self.assertEqual(student_client.get('/api/auth/me/').json()['is_admin'], False)
+        self.assertEqual(student_client.get('/api/admin/users/').status_code, 403)
+
+        admin_client = APIClient()
+        admin_client.login(username='admin@mail.com', password=PASSWORD)
+        self.assertTrue(admin_client.get('/api/auth/me/').json()['is_admin'])
+        created = admin_client.post('/api/admin/users/', {
+            'email': 'new@mail.com',
+            'password': PASSWORD,
+            'student_name': 'New Student',
+            'major': 'Geology',
+            'is_admin': False,
+            'is_active': True,
+        }, format='json')
+        self.assertEqual(created.status_code, 201)
+        self.assertFalse(created.json()['is_admin'])
+        self.assertEqual(User.objects.filter(email='new@mail.com', is_staff=False).count(), 1)
+
+        closed = admin_client.post('/api/admin/gate/', {
+            'registration_open': False,
+            'login_open': False,
+            'panel_note': 'Sign-in is limited.',
+        }, format='json')
+        self.assertEqual(closed.status_code, 200)
+        gate = APIClient().get('/api/auth/gate/')
+        self.assertFalse(gate.json()['registration_open'])
+        self.assertEqual(gate.json()['note'], 'Sign-in is limited.')
+
+        blocked = APIClient().post('/api/auth/register/', {
+            'email': 'late@mail.com',
+            'password': PASSWORD,
+            'student_name': 'Late',
+        }, format='json')
+        self.assertEqual(blocked.status_code, 403)
+
+        student_login = APIClient().post('/api/auth/login/', {
+            'email': 'ada@example.com',
+            'password': PASSWORD,
+        }, format='json')
+        self.assertEqual(student_login.status_code, 403)
+        admin_login = APIClient().post('/api/auth/login/', {
+            'email': 'admin@mail.com',
+            'password': PASSWORD,
+        }, format='json')
+        self.assertEqual(admin_login.status_code, 200)
+
+        demote = admin_client.patch(f'/api/admin/users/{admin.id}/', {
+            'is_admin': False,
+        }, format='json')
+        self.assertEqual(demote.status_code, 400)
+        remove_self = admin_client.delete(f'/api/admin/users/{admin.id}/')
+        self.assertEqual(remove_self.status_code, 400)
+
+        closed_account = admin_client.patch(f'/api/admin/users/{student.id}/', {
+            'is_active': False,
+        }, format='json')
+        self.assertEqual(closed_account.status_code, 200)
+        denied = APIClient().post('/api/auth/login/', {
+            'email': 'ada@example.com',
+            'password': PASSWORD,
+        }, format='json')
+        self.assertEqual(denied.status_code, 400)
+        self.assertIn('closed', denied.json()['detail'].lower())

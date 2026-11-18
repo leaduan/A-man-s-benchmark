@@ -566,6 +566,37 @@
     return data;
   }
 
+  async function gateConfig() {
+    const response = await fetch('/api/auth/gate/', {
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    if (!response.ok) return { registration_open: true, login_open: true, note: '' };
+    return response.json();
+  }
+
+  async function adminUsers() {
+    return request('GET', '/api/admin/users/');
+  }
+
+  async function saveAdminUser(payload, id) {
+    if (id) return request('PATCH', `/api/admin/users/${id}/`, payload);
+    return request('POST', '/api/admin/users/', payload);
+  }
+
+  async function deleteAdminUser(id) {
+    return request('DELETE', `/api/admin/users/${id}/`);
+  }
+
+  async function adminGate() {
+    return request('GET', '/api/admin/gate/');
+  }
+
+  async function saveAdminGate(payload) {
+    return request('POST', '/api/admin/gate/', payload);
+  }
+
   async function logout() {
     await request('POST', '/api/auth/logout/');
     AMB.user = null;
@@ -886,6 +917,12 @@
     login,
     register,
     logout,
+    gateConfig,
+    adminUsers,
+    saveAdminUser,
+    deleteAdminUser,
+    adminGate,
+    saveAdminGate,
   });
 
   const TITLES = {
@@ -895,6 +932,7 @@
     reflection: 'Weekly Reflection',
     study: 'Study Tracker',
     settings: 'Settings',
+    admin: 'Admin',
   };
   let showToken = 0;
 
@@ -936,6 +974,8 @@
     }
     const logoutButton = document.getElementById('logout-btn');
     if (logoutButton) logoutButton.hidden = AMB.mode !== 'remote';
+    const adminNav = document.querySelector('[data-tab="admin"]');
+    if (adminNav) adminNav.hidden = !(AMB.user && AMB.user.is_admin);
   }
 
   function headerDate() {
@@ -965,7 +1005,32 @@
     if (date) date.textContent = headerDate();
     let saved = 'overview';
     try { saved = sessionStorage.getItem('amb-tab') || 'overview'; } catch (err) { /* private mode */ }
+    if (saved === 'admin' && !(AMB.user && AMB.user.is_admin)) saved = 'overview';
     show(TITLES[saved] ? saved : 'overview');
+  }
+
+  async function loadGate() {
+    const gate = await gateConfig();
+    const note = document.querySelector('.demo-note');
+    if (note && gate.note) note.textContent = gate.note;
+    const create = document.getElementById('tab-create');
+    const signIn = document.getElementById('tab-signin');
+    const switcher = document.querySelector('.gate-switch');
+    if (create) create.hidden = gate.registration_open === false;
+    if (switcher) switcher.classList.toggle('single', gate.registration_open === false);
+    if (gate.registration_open === false) gateMode('login');
+    let closed = document.getElementById('gate-closed');
+    if (!closed && note) {
+      closed = document.createElement('p');
+      closed.id = 'gate-closed';
+      closed.className = 'demo-note';
+      note.before(closed);
+    }
+    if (closed) {
+      closed.hidden = gate.login_open !== false;
+      closed.textContent = 'Student sign-in is closed. An admin can still sign in.';
+    }
+    if (signIn) signIn.hidden = false;
   }
 
   function gateMode(mode) {
@@ -990,10 +1055,12 @@
       reflection: window.Reflection,
       study: window.StudyPage,
       settings: window.SettingsPage,
+      admin: window.AdminPage,
     }[tab];
   }
 
   async function show(tab, silent) {
+    if (tab === 'admin' && !(AMB.user && AMB.user.is_admin)) tab = 'overview';
     if (!TITLES[tab]) tab = 'overview';
     const token = ++showToken;
     if (window.StudyPage && StudyPage.onHide) StudyPage.onHide();
@@ -1012,6 +1079,7 @@
   }
 
   function start() {
+    loadGate();
     document.querySelectorAll('[data-tab]').forEach((button) => {
       button.addEventListener('click', () => show(button.dataset.tab));
     });
