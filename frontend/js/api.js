@@ -1095,7 +1095,61 @@
     if (token === showToken) refreshChrome();
   }
 
+  function chartColors() {
+    const style = getComputedStyle(document.documentElement);
+    const pick = (name) => style.getPropertyValue(name).trim();
+    return {
+      tick: pick('--chart-tick'),
+      grid: pick('--chart-grid'),
+      label: pick('--chart-label'),
+      bar: pick('--chart-bar'),
+      barAlt: pick('--chart-bar-alt'),
+    };
+  }
+
+  function restyleCharts() {
+    if (!window.Chart) return;
+    const colors = chartColors();
+    document.querySelectorAll('canvas').forEach((canvas) => {
+      const chart = Chart.getChart(canvas);
+      if (!chart) return;
+      Object.values(chart.options.scales || {}).forEach((scale) => {
+        if (scale.ticks) scale.ticks.color = colors.tick;
+        if (scale.grid && scale.grid.display !== false) scale.grid.color = colors.grid;
+      });
+      const labels = chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels;
+      if (labels) labels.color = colors.label;
+      if (chart.config.type === 'bar') {
+        const fill = chart.options.indexAxis === 'y' ? colors.barAlt : colors.bar;
+        chart.data.datasets.forEach((dataset) => { dataset.backgroundColor = fill; });
+      }
+      chart.update();
+    });
+  }
+
+  function applyTheme(theme) {
+    const night = theme === 'night';
+    document.documentElement.dataset.theme = night ? 'night' : 'day';
+    try { localStorage.setItem('amb-theme', night ? 'night' : 'day'); } catch (err) { /* private mode */ }
+    document.querySelectorAll('.theme-toggle').forEach((button) => {
+      button.setAttribute('aria-pressed', night ? 'true' : 'false');
+      button.textContent = night ? 'Day' : 'Night';
+      button.setAttribute('aria-label', night ? 'Switch to day' : 'Switch to night');
+    });
+    restyleCharts();
+  }
+
+  function bindTheme() {
+    applyTheme(document.documentElement.dataset.theme === 'night' ? 'night' : 'day');
+    document.querySelectorAll('.theme-toggle').forEach((button) => {
+      button.addEventListener('click', () => {
+        applyTheme(document.documentElement.dataset.theme === 'night' ? 'day' : 'night');
+      });
+    });
+  }
+
   function start() {
+    bindTheme();
     loadGate();
     document.querySelectorAll('[data-tab]').forEach((button) => {
       button.addEventListener('click', () => show(button.dataset.tab));
@@ -1174,5 +1228,6 @@
   }
 
   window.AMB = AMB;
+  AMB.chartColors = chartColors;
   window.App = { start, show, refreshChrome, showGate };
 })();

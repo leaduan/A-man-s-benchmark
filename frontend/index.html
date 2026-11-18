@@ -8,11 +8,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      var theme = 'day';
+      try { theme = localStorage.getItem('amb-theme') || 'day'; } catch (err) {}
+      document.documentElement.dataset.theme = theme === 'night' ? 'night' : 'day';
+    })();
+  </script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="gate" id="gate">
     <section class="card gate-card">
+      <div class="gate-tools">
+        <button type="button" class="theme-toggle" aria-pressed="false">Night</button>
+      </div>
       <div class="brand">
         <div class="brand-mark">AMB</div>
         <div>
@@ -109,6 +119,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
         </button>
         <div class="topbar-title" id="topbar-title">Overview</div>
+        <button type="button" class="theme-toggle" aria-pressed="false">Night</button>
         <div class="topbar-date" id="topbar-date"></div>
       </header>
       <main class="content" id="content">

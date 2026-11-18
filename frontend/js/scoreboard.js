@@ -32,10 +32,10 @@
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          y: { min: 1, max: 5, ticks: { stepSize: 1, color: '#64748b' }, grid: { color: '#e2e8f0' } },
-          x: { ticks: { color: '#64748b' }, grid: { display: false } },
+          y: { min: 1, max: 5, ticks: { stepSize: 1, color: AMB.chartColors().tick }, grid: { color: AMB.chartColors().grid } },
+          x: { ticks: { color: AMB.chartColors().tick }, grid: { display: false } },
         },
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, color: '#334155' } } },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, color: AMB.chartColors().label } } },
       },
     });
   }

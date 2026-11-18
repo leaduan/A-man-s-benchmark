@@ -49,7 +49,7 @@
         datasets: [{
           label: 'Hours',
           data: rows.map((row) => Math.round((row[1] / 60) * 10) / 10),
-          backgroundColor: '#1e293b',
+          backgroundColor: AMB.chartColors().barAlt,
           borderRadius: 4,
           maxBarThickness: 22,
         }],
@@ -61,8 +61,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { beginAtZero: true, ticks: { color: '#64748b' }, grid: { color: '#e2e8f0' } },
-          y: { ticks: { color: '#334155' }, grid: { display: false } },
+          x: { beginAtZero: true, ticks: { color: AMB.chartColors().tick }, grid: { color: AMB.chartColors().grid } },
+          y: { ticks: { color: AMB.chartColors().label }, grid: { display: false } },
         },
       },
     });

@@ -42,7 +42,7 @@
         datasets: [{
           label: 'Hours',
           data: rows.map((row) => row.hours),
-          backgroundColor: '#4f46e5',
+          backgroundColor: AMB.chartColors().bar,
           borderRadius: 4,
           maxBarThickness: 36,
         }],
@@ -53,8 +53,8 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { beginAtZero: true, ticks: { color: '#64748b' }, grid: { color: '#e2e8f0' } },
+          x: { grid: { display: false }, ticks: { color: AMB.chartColors().tick } },
+          y: { beginAtZero: true, ticks: { color: AMB.chartColors().tick }, grid: { color: AMB.chartColors().grid } },
         },
       },
     });
