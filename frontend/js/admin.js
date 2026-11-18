@@ -65,7 +65,9 @@
   async function render(root, alive) {
     const [gate, users] = await Promise.all([AMB.adminGate(), AMB.adminUsers()]);
     if (!alive()) return;
-    const rows = users.map((user) => `
+    const rows = users.map((user) => {
+      const self = AMB.user && AMB.user.email === user.email;
+      return `
       <tr>
         <td>
           <div class="task-title">${AMB.escape(user.student_name || user.email)}</div>
@@ -76,10 +78,12 @@
         <td>${AMB.escape(user.major || '—')}</td>
         <td class="num">${user.task_count}</td>
         <td class="row-actions">
+          ${self ? '' : `<button type="button" class="btn ${user.is_active ? 'danger' : 'secondary'} small" data-active="${user.is_active ? '0' : '1'}" data-id="${user.id}">${user.is_active ? 'Deactivate' : 'Activate'}</button>`}
           <button type="button" class="btn secondary small" data-edit="${user.id}">Edit</button>
           <button type="button" class="btn danger small" data-remove="${user.id}">Remove</button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     root.innerHTML = `
       <div class="page-head">
         <div>
@@ -116,6 +120,22 @@
 
     const redraw = () => App.show('admin', true);
     root.querySelector('#add-account').addEventListener('click', () => openUser(null, redraw));
+    root.querySelectorAll('[data-active]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const user = users.find((item) => String(item.id) === button.dataset.id);
+        if (!user) return;
+        const opening = button.dataset.active === '1';
+        button.disabled = true;
+        try {
+          await AMB.saveAdminUser({ is_active: opening }, user.id);
+          AMB.toast(opening ? 'Account can sign in again.' : 'Account deactivated. They cannot sign in.');
+          redraw();
+        } catch (err) {
+          AMB.toast(err.message);
+          button.disabled = false;
+        }
+      });
+    });
     root.querySelectorAll('[data-edit]').forEach((button) => {
       button.addEventListener('click', () => {
         const user = users.find((item) => String(item.id) === button.dataset.edit);

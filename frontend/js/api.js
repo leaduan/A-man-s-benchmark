@@ -954,6 +954,16 @@
     closeDrawer();
   }
 
+  function applyRoleNav() {
+    const admin = Boolean(AMB.user && AMB.user.is_admin);
+    document.querySelectorAll('[data-tab]').forEach((button) => {
+      const isAdminTab = button.dataset.tab === 'admin';
+      button.hidden = admin ? !isAdminTab : isAdminTab;
+    });
+    const tag = document.querySelector('.sidebar .brand-tag');
+    if (tag) tag.textContent = admin ? 'Admin' : 'Personal workspace';
+  }
+
   async function refreshChrome() {
     try {
       const settings = await getSettings();
@@ -974,8 +984,7 @@
     }
     const logoutButton = document.getElementById('logout-btn');
     if (logoutButton) logoutButton.hidden = AMB.mode !== 'remote';
-    const adminNav = document.querySelector('[data-tab="admin"]');
-    if (adminNav) adminNav.hidden = !(AMB.user && AMB.user.is_admin);
+    applyRoleNav();
   }
 
   function headerDate() {
@@ -1001,12 +1010,18 @@
     const workspace = document.getElementById('workspace');
     if (gate) gate.hidden = true;
     if (workspace) workspace.hidden = false;
+    applyRoleNav();
     const date = document.getElementById('topbar-date');
     if (date) date.textContent = headerDate();
+    const admin = Boolean(AMB.user && AMB.user.is_admin);
+    show(admin ? 'admin' : (TITLES[savedTab()] ? savedTab() : 'overview'));
+  }
+
+  function savedTab() {
     let saved = 'overview';
     try { saved = sessionStorage.getItem('amb-tab') || 'overview'; } catch (err) { /* private mode */ }
     if (saved === 'admin' && !(AMB.user && AMB.user.is_admin)) saved = 'overview';
-    show(TITLES[saved] ? saved : 'overview');
+    return saved;
   }
 
   async function loadGate() {
@@ -1060,8 +1075,10 @@
   }
 
   async function show(tab, silent) {
-    if (tab === 'admin' && !(AMB.user && AMB.user.is_admin)) tab = 'overview';
+    if (AMB.user && AMB.user.is_admin) tab = 'admin';
+    else if (tab === 'admin') tab = 'overview';
     if (!TITLES[tab]) tab = 'overview';
+    applyRoleNav();
     const token = ++showToken;
     if (window.StudyPage && StudyPage.onHide) StudyPage.onHide();
     clearCharts();
